@@ -5,10 +5,10 @@ A professional desktop application for generating accurate English subtitles
 from video files using faster-whisper with Voice Activity Detection (VAD).
 
 Features:
-- Modern, professional UI with enhanced UX
-- Faster-whisper with VAD for 100% accurate timestamps
+- faster-whisper ("base" model) with VAD, batched for speed
 - GPU acceleration with automatic CPU fallback
-- Batch queue with per-file progress
+- Readable SRT subtitles built from word-level timing
+- One queue with live per-video progress, cancel and drag & drop
 - No phantom subtitles during music/action scenes
 
 Usage:

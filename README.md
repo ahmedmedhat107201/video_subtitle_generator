@@ -70,8 +70,8 @@ The interface uses a "Cinema" design system defined in `src/gui/theme.py`:
 ## 🚀 Installation
 
 ### Prerequisites
-- Python 3.10 or 3.11
-- (Optional) CUDA-compatible GPU for acceleration
+- Python 3.10 or newer (developed and tested on Python 3.14, Windows 11)
+- (Optional) An NVIDIA GPU with an up-to-date driver for GPU acceleration
 
 ### Setup
 
@@ -90,6 +90,14 @@ The interface uses a "Cinema" design system defined in `src/gui/theme.py`:
    python main.py
    ```
 
+### Upgrading from an older version
+Older versions used PyTorch (only to detect the GPU), moviepy and imageio-ffmpeg
+(to extract audio into a temporary WAV file). None of them are needed any more.
+If they are still installed, you can remove them:
+```bash
+pip uninstall torch moviepy imageio-ffmpeg imageio proglog decorator python-dotenv pillow
+```
+
 ## 💡 Usage Tips
 
 ### Model
@@ -101,9 +109,10 @@ The interface uses a "Cinema" design system defined in `src/gui/theme.py`:
 - Later runs use the cached model. It is loaded into memory once per app session and reused for every file
 
 ### Performance
-- **GPU**: A 22-minute episode takes about 8 seconds on an RTX 3050 Laptop GPU
-- **CPU**: Slower, but works everywhere
-- **Long videos**: Automatically handled, no chunking needed
+Measured on a 22-minute episode:
+- **GPU** (RTX 3050 Laptop): about 8 seconds
+- **CPU** (automatic fallback): about 45 seconds
+- **Long videos**: Handled automatically; speech is split by VAD and transcribed in batches
 
 ### Subtitle Layout
 Line length, rows, on-screen time and pause handling are set in `src/utils/config.py`
@@ -126,6 +135,12 @@ Line length, rows, on-screen time and pause handling are set in `src/utils/confi
 - **Modular Design**: Each component has single responsibility
 - **Centralized Config**: All settings in one place
 - **Clean Imports**: Proper Python package structure
+
+### Transcription Pipeline
+1. **Read audio**: PyAV decodes the audio track straight from the video into memory (16 kHz mono)
+2. **Transcribe**: faster-whisper's batched pipeline with VAD and word timestamps (GPU `float16`, CPU `int8`)
+3. **Build cues**: words are grouped into readable lines (see *Subtitle Layout*)
+4. **Save**: `<video name>_subtitles.srt` next to the video
 
 ### VAD Parameters
 ```python

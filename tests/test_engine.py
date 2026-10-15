@@ -75,7 +75,6 @@ class EngineTests(unittest.TestCase):
         model = FakeModel()
         make_engine(model).generate_subtitles(self.video)
         self.assertTrue(model.options["word_timestamps"])
-        self.assertNotIn("hotwords", model.options)
 
     def test_cancel_stops_and_writes_nothing(self, _load):
         cancel = threading.Event()

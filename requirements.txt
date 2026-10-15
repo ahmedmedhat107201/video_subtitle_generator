@@ -15,13 +15,14 @@ tkinterdnd2>=0.4.2
 nvidia-cublas-cu12; sys_platform != "darwin"
 nvidia-cudnn-cu12>=9,<10; sys_platform != "darwin"
 
-# Note: The following are automatically installed as dependencies:
-# - numpy (faster-whisper dependency)
-# - ctranslate2 (faster-whisper inference engine, GPU/CPU)
-# - av (faster-whisper dependency; reads audio from video files via FFmpeg)
-# - onnxruntime (VAD/Silero model)
-# - Pillow (CustomTkinter dependency)
-# - tqdm (progress bars)
+# Note: The following are installed automatically as dependencies:
+# - ctranslate2 (faster-whisper inference engine, GPU/CPU + GPU detection)
+# - av (PyAV; reads audio straight from video files via its bundled FFmpeg)
+# - onnxruntime (Silero VAD model)
+# - numpy, tokenizers, huggingface-hub, tqdm (faster-whisper)
+# - darkdetect, packaging (CustomTkinter)
+#
+# Not needed any more (removed): torch, moviepy, imageio-ffmpeg, Pillow
 
 # Installation:
 # pip install -r requirements.txt

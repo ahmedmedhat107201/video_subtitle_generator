@@ -21,6 +21,7 @@ wheels/
 *.egg
 
 # Virtual Environment
+.venv/
 venv/
 ENV/
 env/
@@ -36,9 +37,7 @@ env/
 .DS_Store
 Thumbs.db
 
-# Temporary files
-*.wav
-*_temp.*
+# Logs
 *.log
 
 # Model cache
