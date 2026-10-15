@@ -3,8 +3,8 @@ Subtitle generation engine using faster-whisper with VAD.
 This is the core transcription logic.
 """
 import os
-import torch
-from faster_whisper import WhisperModel
+import ctranslate2
+from faster_whisper import WhisperModel, decode_audio
 
 from src.utils.config import Config
 from src.core.audio_processor import AudioProcessor
@@ -15,45 +15,64 @@ class SubtitleEngine:
     """
     Main subtitle generation engine.
     Uses faster-whisper with Voice Activity Detection for accurate timestamps.
+    Runs on the GPU when available and falls back to the CPU if it fails.
     """
-    
+
     def __init__(self, model_size=None):
         """
         Initialize the subtitle engine.
-        
+
         Args:
             model_size: Whisper model size. Defaults to Config.DEFAULT_MODEL_SIZE ("base")
         """
+        Config.setup_cuda_libraries()
         self.model_size = model_size or Config.DEFAULT_MODEL_SIZE
         self.device = self._detect_device()
         self.compute_type = Config.get_compute_type(self.device)
         self.model = self._load_model()
-    
+
+    @staticmethod
+    def detect_device():
+        """Return "cuda" if faster-whisper can see an NVIDIA GPU, else "cpu"."""
+        try:
+            return "cuda" if ctranslate2.get_cuda_device_count() > 0 else "cpu"
+        except Exception:
+            return "cpu"
+
     def _detect_device(self):
         """Detect and configure compute device (CUDA or CPU)."""
-        if torch.cuda.is_available():
-            device = "cuda"
-            gpu_name = torch.cuda.get_device_name(0)
-            print(f"🖥️  Device: CUDA")
-            print(f"🚀 GPU: {gpu_name}")
-        else:
-            device = "cpu"
-            print(f"🖥️  Device: CPU")
-        
+        device = self.detect_device()
+        print(f"🖥️  Device: {device.upper()}")
         return device
-    
-    def _load_model(self):
-        """Load the Whisper model with VAD support."""
-        print(f"📥 Loading faster-whisper '{self.model_size}' model...")
-        
+
+    def _create_model(self):
+        """Create the Whisper model on the current device."""
+        print(f"📥 Loading faster-whisper '{self.model_size}' model ({self.device}, {self.compute_type})...")
+
         model = WhisperModel(
             self.model_size,
             device=self.device,
             compute_type=self.compute_type
         )
-        
+
         print(f"✅ Model loaded successfully")
         return model
+
+    def _load_model(self):
+        """Load the Whisper model, falling back to the CPU if the GPU fails."""
+        try:
+            return self._create_model()
+        except Exception as exc:
+            if self.device != "cuda":
+                raise
+            print(f"⚠️  GPU model load failed ({exc}); falling back to CPU")
+            self._use_cpu()
+            return self._create_model()
+
+    def _use_cpu(self):
+        """Switch the engine's settings to CPU mode."""
+        self.device = "cpu"
+        self.compute_type = Config.get_compute_type("cpu")
     
     def generate_subtitles(self, video_path, output_path=None, progress_callback=None):
         """
@@ -119,12 +138,30 @@ class SubtitleEngine:
             List of transcription segments
         """
         print(f"🤖 Transcribing with VAD...")
-        
+
+        # Decode outside the GPU fallback so a broken audio file is reported
+        # as a normal error instead of triggering a switch to the CPU.
+        audio = decode_audio(audio_path)
+
+        try:
+            return self._run_transcription(audio, progress_callback)
+        except Exception as exc:
+            if self.device != "cuda":
+                raise
+            print(f"⚠️  GPU transcription failed ({exc}); switching to CPU")
+            if progress_callback:
+                progress_callback(0.35, "⚠️ GPU unavailable, switching to CPU...", str(exc))
+            self._use_cpu()
+            self.model = self._create_model()
+            return self._run_transcription(audio, progress_callback)
+
+    def _run_transcription(self, audio, progress_callback=None):
+        """Run the Whisper model on decoded audio and return the segment list."""
         if progress_callback:
             progress_callback(0.35, "🤖 Running AI transcription...", "Processing audio with Whisper AI model")
-        
+
         segments, info = self.model.transcribe(
-            audio_path,
+            audio,
             language="en",
             task="transcribe",
             beam_size=Config.BEAM_SIZE,

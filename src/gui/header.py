@@ -25,7 +25,7 @@ class Header:
         badges = [
             ("⚡", "Fast Processing"),
             ("🎯", "Accurate Timestamps"),
-            ("🚀", "GPU Accelerated"),
+            ("🖥️", "Detecting Device"),
         ]
 
         for emoji, text in badges:
@@ -36,3 +36,11 @@ class Header:
                 text_color=TEXT,
             )
             badge.pack(side="left", padx=15)
+
+        # The last badge shows the device actually in use
+        self.device_badge = badge
+
+    def set_device(self, device: str):
+        """Show whether transcription runs on the GPU ("cuda") or the CPU."""
+        text = "🚀 GPU Accelerated" if device == "cuda" else "🖥️ CPU Mode"
+        self.device_badge.configure(text=text)

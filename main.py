@@ -7,7 +7,7 @@ from video files using faster-whisper with Voice Activity Detection (VAD).
 Features:
 - Modern, professional UI with enhanced UX
 - Faster-whisper with VAD for 100% accurate timestamps
-- GPU acceleration support
+- GPU acceleration with automatic CPU fallback
 - Batch queue with per-file progress
 - No phantom subtitles during music/action scenes
 

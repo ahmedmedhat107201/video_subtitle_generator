@@ -17,6 +17,7 @@ from src.gui.video_card import VideoCard
 from src.gui.action_panel import ActionPanel
 from src.gui.theme import CANVAS_BG
 from src.core.subtitle_controller import SubtitleController
+from src.core.subtitle_engine import SubtitleEngine
 
 
 class SubtitleAppWindow(ctk.CTk):
@@ -48,7 +49,8 @@ class SubtitleAppWindow(ctk.CTk):
         main_container, _canvas = make_scrollable_frame(self, canvas_bg=CANVAS_BG)
 
         # ===== HEADER SECTION =====
-        Header(main_container)
+        self.header = Header(main_container)
+        self.header.set_device(SubtitleEngine.detect_device())
 
         # ===== CONTENT SECTION =====
         content_frame = ctk.CTkFrame(main_container, fg_color="transparent")
@@ -198,6 +200,7 @@ class SubtitleAppWindow(ctk.CTk):
 
             def _record_success():
                 self._succeeded += 1
+                self._refresh_device_badge()
                 self._advance_queue()
 
             self.after(500, _record_success)
@@ -213,11 +216,18 @@ class SubtitleAppWindow(ctk.CTk):
 
             def _record_failure():
                 self._failed.append(os.path.basename(self._queue[self._current_index]))
+                self._refresh_device_badge()
                 self._advance_queue()
 
             self.after(1000, _record_failure)
         except Exception:
             logger.exception("Failed to handle file error")
+
+    def _refresh_device_badge(self):
+        """Show the device the loaded model actually uses (e.g. after a CPU fallback)."""
+        engine = getattr(self.controller, "engine", None)
+        if engine is not None:
+            self.header.set_device(engine.device)
 
     def _advance_queue(self):
         """Move to the next queued file, or finish and show a summary."""

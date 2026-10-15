@@ -3,25 +3,27 @@
 
 # Core AI & Processing
 faster-whisper>=1.2.1
-torch>=2.12.1
 customtkinter>=5.2.2
 moviepy>=2.2.1
 
 # Media Processing
 imageio-ffmpeg>=0.5.1
 
+# GPU Acceleration (NVIDIA)
+# cuBLAS and cuDNN let faster-whisper run on an NVIDIA GPU (only the NVIDIA
+# driver is needed, no CUDA Toolkit). Without a usable GPU the app
+# automatically falls back to the CPU.
+nvidia-cublas-cu12; sys_platform != "darwin"
+nvidia-cudnn-cu12>=9,<10; sys_platform != "darwin"
+
 # Note: The following are automatically installed as dependencies:
 # - numpy (faster-whisper dependency)
+# - ctranslate2 (faster-whisper inference engine, GPU/CPU)
 # - av (faster-whisper dependency)
 # - onnxruntime (VAD/Silero model)
 # - Pillow (CustomTkinter dependency)
 # - tqdm (progress bars)
 
-# GPU Acceleration (Optional)
-# For NVIDIA GPU support, install CUDA-enabled PyTorch:
-# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-
 # Installation:
 # pip install -r requirements.txt
-
 

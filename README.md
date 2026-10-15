@@ -5,7 +5,7 @@ A professional desktop application for generating accurate English subtitles fro
 ## ✨ Features
 
 - **🎯 100% Accurate Timestamps**: VAD ensures subtitles sync perfectly, even during music/action scenes
-- **🚀 GPU Acceleration**: Automatic CUDA detection for faster processing
+- **🚀 GPU Acceleration**: Automatic NVIDIA GPU detection, with automatic fallback to CPU if the GPU can't be used
 - **🎨 Modern GUI**: Beautiful dark-themed interface using CustomTkinter
 - **📂 Batch Queue**: Add several videos and process them one after another, each with its own progress bar
 - **📹 Format Support**: MP4, AVI, MOV, MKV, WMV, FLV, WebM
@@ -63,13 +63,11 @@ video_subtitle_generator/
    ```bash
    pip install -r requirements.txt
    ```
+   This includes NVIDIA's cuBLAS and cuDNN libraries for GPU support. An NVIDIA
+   driver is all you need on top (no CUDA Toolkit, no PyTorch). The header shows
+   whether the app is running in GPU or CPU mode.
 
-3. **(Optional) GPU Support**:
-   ```bash
-   pip install torch --index-url https://download.pytorch.org/whl/cu121
-   ```
-
-4. **Run the app**:
+3. **Run the app**:
    ```bash
    python main.py
    ```
@@ -97,7 +95,7 @@ video_subtitle_generator/
 | VAD | Silero VAD | Voice activity detection |
 | GUI | CustomTkinter | Modern dark-themed interface |
 | Media | moviepy | Video/audio processing |
-| Acceleration | PyTorch + CUDA | GPU computing |
+| Acceleration | CTranslate2 + CUDA (cuBLAS/cuDNN) | GPU computing, CPU fallback |
 
 ## 🎯 Technical Details
 

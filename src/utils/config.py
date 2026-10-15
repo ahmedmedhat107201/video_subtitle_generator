@@ -2,6 +2,8 @@
 Configuration module for the subtitle generator.
 Handles FFmpeg setup and system-level configuration.
 """
+import glob
+import importlib.util
 import os
 from imageio_ffmpeg import get_ffmpeg_exe
 
@@ -34,7 +36,11 @@ class Config:
     COMPRESSION_RATIO_THRESHOLD = 2.4
     LOG_PROB_THRESHOLD = -1.0
     NO_SPEECH_THRESHOLD = 0.6
-    
+
+    # Handles returned by os.add_dll_directory must stay alive
+    _cuda_dll_handles = []
+    _cuda_libraries_ready = False
+
     @staticmethod
     def setup_ffmpeg():
         """
@@ -47,7 +53,30 @@ class Config:
         os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_exe
         os.environ["FFMPEG_BINARY"] = ffmpeg_exe
         os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
-    
+
+    @staticmethod
+    def setup_cuda_libraries():
+        """
+        Make the pip-installed NVIDIA libraries (cuBLAS, cuDNN) findable.
+        On Windows, faster-whisper cannot locate them in site-packages on its
+        own, so their bin folders are added to the DLL search path. Safe to
+        call repeatedly; does nothing on other platforms or if not installed.
+        """
+        if Config._cuda_libraries_ready:
+            return
+        Config._cuda_libraries_ready = True
+
+        if not hasattr(os, "add_dll_directory"):
+            return
+        spec = importlib.util.find_spec("nvidia")
+        if spec is None or not spec.submodule_search_locations:
+            return
+
+        for base in spec.submodule_search_locations:
+            for bin_dir in glob.glob(os.path.join(base, "*", "bin")):
+                Config._cuda_dll_handles.append(os.add_dll_directory(bin_dir))
+                os.environ["PATH"] = bin_dir + os.pathsep + os.environ.get("PATH", "")
+
     @staticmethod
     def get_compute_type(device):
         """Get appropriate compute type based on device."""
