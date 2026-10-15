@@ -2,6 +2,9 @@
 
 A professional desktop application for generating accurate English subtitles from video files using **faster-whisper** with **Voice Activity Detection (VAD)**.
 
+📘 **[User Guide](docs/USER_GUIDE.md)**: what the app does and how to use it
+🛠️ **[Installation Guide](docs/INSTALLATION.md)**: set it up on your own computer
+
 ## ✨ Features
 
 - **🎯 100% Accurate Timestamps**: VAD ensures subtitles sync perfectly, even during music/action scenes
@@ -48,6 +51,7 @@ video_subtitle_generator/
 │   │   └── theme.py                # Design system: colours, fonts, icons, spacing
 │   └── utils/             # Configuration
 │       └── config.py               # Centralized settings
+├── docs/                  # User Guide and Installation Guide
 ├── tests/                 # Unit tests (python -m unittest discover tests)
 ├── main.py                # Entry point
 ├── requirements.txt       # Dependencies
@@ -74,6 +78,8 @@ The interface uses a "Cinema" design system defined in `src/gui/theme.py`:
 - (Optional) An NVIDIA GPU with an up-to-date driver for GPU acceleration
 
 ### Setup
+
+> For a detailed, beginner-friendly walkthrough (Python setup, CPU-only install, shortcuts, troubleshooting), see the **[Installation Guide](docs/INSTALLATION.md)**.
 
 1. **Clone/Download** this repository
 
