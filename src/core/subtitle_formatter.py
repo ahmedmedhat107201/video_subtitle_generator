@@ -50,9 +50,11 @@ class SubtitleFormatter:
         Returns:
             Formatted timestamp string
         """
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = int(seconds % 60)
-        millis = int((seconds % 1) * 1000)
+        # Round to the nearest millisecond, then split with integer math so
+        # values like 59.9996 become 00:01:00,000 instead of 00:00:59,999
+        total_ms = int(round(seconds * 1000))
+        hours, total_ms = divmod(total_ms, 3_600_000)
+        minutes, total_ms = divmod(total_ms, 60_000)
+        secs, millis = divmod(total_ms, 1000)
         
         return f"{hours:02d}:{minutes:02d}:{secs:02d},{millis:03d}"

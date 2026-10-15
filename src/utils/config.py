@@ -1,11 +1,10 @@
 """
 Configuration module for the subtitle generator.
-Handles FFmpeg setup and system-level configuration.
+Holds transcription settings and GPU library setup.
 """
 import glob
 import importlib.util
 import os
-from imageio_ffmpeg import get_ffmpeg_exe
 
 
 class Config:
@@ -16,9 +15,6 @@ class Config:
     
     # Audio processing settings
     AUDIO_SAMPLE_RATE = 16000  # Whisper requires 16kHz
-    AUDIO_CODEC = 'pcm_s16le'
-    AUDIO_BYTES = 2
-    AUDIO_BUFFER_SIZE = 2000
     
     # Transcription quality settings
     BEAM_SIZE = 5
@@ -40,19 +36,6 @@ class Config:
     # Handles returned by os.add_dll_directory must stay alive
     _cuda_dll_handles = []
     _cuda_libraries_ready = False
-
-    @staticmethod
-    def setup_ffmpeg():
-        """
-        Configure FFmpeg environment variables.
-        Must be called before importing moviepy or whisper.
-        """
-        ffmpeg_exe = get_ffmpeg_exe()
-        ffmpeg_dir = os.path.dirname(ffmpeg_exe)
-        
-        os.environ["IMAGEIO_FFMPEG_EXE"] = ffmpeg_exe
-        os.environ["FFMPEG_BINARY"] = ffmpeg_exe
-        os.environ["PATH"] = ffmpeg_dir + os.pathsep + os.environ.get("PATH", "")
 
     @staticmethod
     def setup_cuda_libraries():

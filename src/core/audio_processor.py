@@ -1,48 +1,27 @@
 """
 Audio processing module.
-Handles video-to-audio extraction.
+Reads the audio track straight from a video file.
 """
 import os
-import warnings
-from moviepy.video.io.VideoFileClip import VideoFileClip
+from faster_whisper import decode_audio
 from src.utils.config import Config
 
 
 class AudioProcessor:
-    """Handles audio extraction from video files."""
-    
+    """Handles reading audio from video files."""
+
     @staticmethod
-    def extract_audio(video_path, audio_path):
+    def load_audio(video_path):
         """
-        Extract audio from video file and save as WAV.
-        
+        Decode the video's audio track into memory (no temporary files).
+
         Args:
             video_path: Path to input video file
-            audio_path: Path where audio WAV file will be saved
+
+        Returns:
+            16 kHz mono float32 numpy array, ready for Whisper
         """
         print(f"📹 Loading video: {os.path.basename(video_path)}")
-        
-        # Suppress moviepy subtitle stream warning
-        warnings.filterwarnings('ignore', message='.*Subtitle stream.*')
-        
-        video = VideoFileClip(video_path)
-        
-        print(f"🎵 Extracting audio...")
-        video.audio.write_audiofile(
-            audio_path,
-            codec=Config.AUDIO_CODEC,
-            fps=Config.AUDIO_SAMPLE_RATE,
-            nbytes=Config.AUDIO_BYTES,
-            buffersize=Config.AUDIO_BUFFER_SIZE,
-            logger=None
-        )
-        
-        video.close()
-        print(f"✅ Audio extraction complete")
-    
-    @staticmethod
-    def cleanup_temp_audio(audio_path):
-        """Remove temporary audio file."""
-        if os.path.exists(audio_path):
-            os.remove(audio_path)
-            print(f"🗑️ Cleaned up temporary audio file")
+        audio = decode_audio(video_path, sampling_rate=Config.AUDIO_SAMPLE_RATE)
+        print(f"✅ Audio loaded")
+        return audio

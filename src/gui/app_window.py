@@ -10,7 +10,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from src.utils.config import Config
 from src.gui.components import make_scrollable_frame
 from src.gui.header import Header
 from src.gui.video_card import VideoCard
@@ -35,8 +34,8 @@ class SubtitleAppWindow(ctk.CTk):
         ctk.set_appearance_mode("dark")
         ctk.set_default_color_theme("blue")
 
-        # Setup FFmpeg
-        Config.setup_ffmpeg()
+        # True while a queue is being processed
+        self._processing = False
 
         # Build modern UI
         self._build_ui()
@@ -57,7 +56,7 @@ class SubtitleAppWindow(ctk.CTk):
         content_frame.pack(fill="both", expand=True, padx=40, pady=30)
 
         # Video selection / queue card
-        video = VideoCard(content_frame, browse_command=self._add_videos)
+        video = VideoCard(content_frame, browse_command=self._add_videos, on_change=self._on_queue_changed)
         self.video_card = video
         self.browse_button = video.browse_button
 
@@ -78,13 +77,16 @@ class SubtitleAppWindow(ctk.CTk):
         if not file_paths:
             return
 
-        added = self.video_card.add_files(file_paths)
-        if added:
-            # enable generate when there is at least one file
-            try:
-                self.generate_button.configure(state="normal")
-            except Exception:
-                pass
+        # Generate is enabled through _on_queue_changed
+        self.video_card.add_files(file_paths)
+
+    def _on_queue_changed(self, count):
+        """Enable Generate only when files are queued and nothing is running."""
+        button = getattr(self, "generate_button", None)
+        if button is None:
+            return
+        enabled = count > 0 and not self._processing
+        button.configure(state="normal" if enabled else "disabled")
 
     def _generate_subtitles(self):
         """Start subtitle generation for the queued files (sequential)."""
@@ -97,6 +99,7 @@ class SubtitleAppWindow(ctk.CTk):
             return
 
         # Disable interaction
+        self._processing = True
         try:
             self.browse_button.configure(state="disabled")
         except Exception:
@@ -238,13 +241,14 @@ class SubtitleAppWindow(ctk.CTk):
 
         self.action_panel.hide_video_tile()
 
-        # re-enable UI
+        # re-enable UI; Generate follows the (now empty) queue
+        self._processing = False
         try:
             self.browse_button.configure(state="normal")
-            self.generate_button.configure(state="normal")
             self.video_card.clear_button.configure(state="normal")
         except Exception:
             pass
+        self._on_queue_changed(len(self.video_card.get_queue()))
 
         if self._failed:
             failed_list = "\n".join(f"• {name}" for name in self._failed)

@@ -7,7 +7,10 @@ from src.gui.theme import PRIMARY, PRIMARY_HOVER, MUTED, DANGER, DANGER_HOVER, C
 class VideoCard:
     """Encapsulates the video selection card with header, file info and browse button."""
 
-    def __init__(self, parent, browse_command=None):
+    def __init__(self, parent, browse_command=None, on_change=None):
+        # Called with the queue length whenever files are added or removed
+        self._on_change = on_change
+
         self.card = ctk.CTkFrame(parent, corner_radius=15, fg_color=CARD_DARK)
         self.card.pack(fill="x", pady=(0, 25))
 
@@ -154,6 +157,12 @@ class VideoCard:
         return list(self._queue)
 
     def _refresh_list(self):
+        """Redraw the queued-files list and notify the owner of the new count."""
+        self._render_list()
+        if self._on_change:
+            self._on_change(len(self._queue))
+
+    def _render_list(self):
         """Refresh the visual list of queued files."""
         # Clear current inner list widgets
         for child in self.inner_list_frame.winfo_children():

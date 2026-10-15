@@ -14,7 +14,7 @@ A professional desktop application for generating accurate English subtitles fro
 ## 🔧 How It Works
 
 1. **Add Videos**: Add one or more video files to the queue
-2. **Generate**: App extracts audio, detects speech with VAD, and transcribes each file in turn
+2. **Generate**: App reads the audio straight from the video (no temporary files), detects speech with VAD, and transcribes each file in turn
 3. **Done**: Subtitles saved as `<video name>_subtitles.srt` next to each video, with a summary of how many succeeded or failed
 
 ### Why VAD Matters
@@ -30,7 +30,7 @@ Traditional Whisper can generate "phantom" subtitles during music, sound effects
 video_subtitle_generator/
 ├── src/
 │   ├── core/              # Business logic
-│   │   ├── audio_processor.py      # Audio extraction
+│   │   ├── audio_processor.py      # Audio loading
 │   │   ├── subtitle_controller.py  # Runs jobs in a background thread
 │   │   ├── subtitle_engine.py      # Whisper + VAD transcription
 │   │   └── subtitle_formatter.py   # SRT generation
@@ -94,7 +94,7 @@ video_subtitle_generator/
 | AI Model | faster-whisper | Speech-to-text transcription |
 | VAD | Silero VAD | Voice activity detection |
 | GUI | CustomTkinter | Modern dark-themed interface |
-| Media | moviepy | Video/audio processing |
+| Media | PyAV (FFmpeg, via faster-whisper) | Reading audio from video files |
 | Acceleration | CTranslate2 + CUDA (cuBLAS/cuDNN) | GPU computing, CPU fallback |
 
 ## 🎯 Technical Details
