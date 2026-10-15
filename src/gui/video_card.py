@@ -1,7 +1,7 @@
 import os
 import tkinter as tk
 import customtkinter as ctk
-from src.gui.theme import PRIMARY, MUTED, DANGER, CARD_DARK, TEXT, BG_DARK
+from src.gui.theme import PRIMARY, PRIMARY_HOVER, MUTED, DANGER, DANGER_HOVER, CARD_DARK, TEXT, BG_DARK
 
 
 class VideoCard:
@@ -49,7 +49,7 @@ class VideoCard:
             font=ctk.CTkFont(size=13, weight="bold"),
             corner_radius=8,
             fg_color=PRIMARY,
-            hover_color=PRIMARY,
+            hover_color=PRIMARY_HOVER,
         )
         self.browse_button.pack(side="left", fill="x", expand=True, padx=(0, 8))
 
@@ -94,8 +94,7 @@ class VideoCard:
         # Create canvas + scrollbar inside the container. Use a sensible
         # solid background color (tk.Canvas doesn't accept CTk's "transparent"
         # token). Match the dark body color so the list appears seamless.
-        canvas_bg = "#0f1720"
-        self._list_canvas = tk.Canvas(self.list_container, highlightthickness=0, bg=canvas_bg)
+        self._list_canvas = tk.Canvas(self.list_container, highlightthickness=0, bg=BG_DARK)
         self._list_vscroll = ctk.CTkScrollbar(self.list_container, orientation="vertical", command=self._list_canvas.yview)
         self._list_canvas.configure(yscrollcommand=self._list_vscroll.set)
         self._list_vscroll.pack(side="right", fill="y")
@@ -121,22 +120,8 @@ class VideoCard:
         self.inner_list_frame.bind("<Configure>", _on_inner_config)
         self._list_canvas.bind("<Configure>", _on_canvas_config)
 
-        # Mouse wheel support for the inner canvas
-        def _on_mousewheel(event):
-            try:
-                if hasattr(event, "delta"):
-                    step = int(-1 * (event.delta / 120))
-                elif hasattr(event, "num"):
-                    step = -1 if event.num == 4 else 1 if event.num == 5 else 0
-                else:
-                    step = 0
-            except Exception:
-                step = 0
-            self._list_canvas.yview_scroll(step, "units")
-
-        self._list_canvas.bind("<MouseWheel>", _on_mousewheel)
-        self._list_canvas.bind("<Button-4>", _on_mousewheel)
-        self._list_canvas.bind("<Button-5>", _on_mousewheel)
+        # Mouse wheel scrolling for this list is handled by the global handler
+        # in src.gui.components.make_scrollable_frame.
 
     # Queue management API
     def add_files(self, file_paths):
@@ -210,7 +195,7 @@ class VideoCard:
 
             # small remove button
             remove_btn = ctk.CTkButton(row, text="✖", width=28, height=24, corner_radius=8,
-                                      fg_color=DANGER, hover_color=DANGER,
+                                      fg_color=DANGER, hover_color=DANGER_HOVER,
                                       command=lambda p=path: self._remove_item(p))
             remove_btn.pack(side="right")
 

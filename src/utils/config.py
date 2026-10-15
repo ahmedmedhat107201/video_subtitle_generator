@@ -11,7 +11,6 @@ class Config:
     
     # Whisper model configuration
     DEFAULT_MODEL_SIZE = "base"
-    MODEL_SIZES = ["tiny", "base", "small", "medium", "large-v2", "large-v3"]
     
     # Audio processing settings
     AUDIO_SAMPLE_RATE = 16000  # Whisper requires 16kHz

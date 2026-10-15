@@ -22,8 +22,7 @@ class SubtitleEngine:
         Initialize the subtitle engine.
         
         Args:
-            model_size: Whisper model size (tiny, base, small, medium, large-v2, large-v3)
-                       Defaults to Config.DEFAULT_MODEL_SIZE
+            model_size: Whisper model size. Defaults to Config.DEFAULT_MODEL_SIZE ("base")
         """
         self.model_size = model_size or Config.DEFAULT_MODEL_SIZE
         self.device = self._detect_device()
@@ -164,7 +163,7 @@ class SubtitleEngine:
     def _get_temp_audio_path(video_path):
         """Generate temporary audio file path."""
         base_name = os.path.splitext(os.path.basename(video_path))[0]
-        return f"{base_name}_temp.wav"
+        return os.path.join(os.path.dirname(video_path), f"{base_name}_temp.wav")
     
     @staticmethod
     def _save_subtitles(output_path, content):

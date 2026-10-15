@@ -2,7 +2,7 @@ import logging
 
 import customtkinter as ctk
 from src.gui.video_tile import make_video_tile
-from src.gui.theme import PRIMARY, MUTED, DANGER, ACCENT
+from src.gui.theme import PRIMARY, PRIMARY_HOVER, MUTED, DANGER, ACCENT
 
 
 logger = logging.getLogger(__name__)
@@ -23,7 +23,7 @@ class ActionPanel:
             font=ctk.CTkFont(size=18, weight="bold"),
             corner_radius=15,
             fg_color=PRIMARY,
-            hover_color=PRIMARY,
+            hover_color=PRIMARY_HOVER,
             state="disabled",
         )
         self.generate_button.pack(fill="x", pady=(0, 15))

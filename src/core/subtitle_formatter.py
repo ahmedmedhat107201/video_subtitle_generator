@@ -19,15 +19,19 @@ class SubtitleFormatter:
             String containing formatted SRT content
         """
         srt_lines = []
-        
-        for index, segment in enumerate(segments, start=1):
-            start_time = SubtitleFormatter._format_timestamp(segment.start)
-            end_time = SubtitleFormatter._format_timestamp(segment.end)
+        index = 0
+
+        for segment in segments:
             text = segment.text.strip()
-            
+
+            # Skip empty segments without consuming a number
             if not text:
                 continue
-            
+
+            index += 1
+            start_time = SubtitleFormatter._format_timestamp(segment.start)
+            end_time = SubtitleFormatter._format_timestamp(segment.end)
+
             srt_lines.append(f"{index}")
             srt_lines.append(f"{start_time} --> {end_time}")
             srt_lines.append(text)

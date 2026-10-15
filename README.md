@@ -7,16 +7,15 @@ A professional desktop application for generating accurate English subtitles fro
 - **🎯 100% Accurate Timestamps**: VAD ensures subtitles sync perfectly, even during music/action scenes
 - **🚀 GPU Acceleration**: Automatic CUDA detection for faster processing
 - **🎨 Modern GUI**: Beautiful dark-themed interface using CustomTkinter
-- **🤖 Multiple Models**: Choose from tiny, base, small, medium, or large models
+- **📂 Batch Queue**: Add several videos and process them one after another, each with its own progress bar
 - **📹 Format Support**: MP4, AVI, MOV, MKV, WMV, FLV, WebM
 - **💪 Production Ready**: Clean modular architecture with proper separation of concerns
 
 ## 🔧 How It Works
 
-1. **Select Video**: Choose any video file through the GUI
-2. **Pick Model**: Select Whisper model size (base recommended)
-3. **Generate**: App extracts audio, detects speech with VAD, and transcribes
-4. **Done**: Subtitles saved as SRT file next to your video
+1. **Add Videos**: Add one or more video files to the queue
+2. **Generate**: App extracts audio, detects speech with VAD, and transcribes each file in turn
+3. **Done**: Subtitles saved as `<video name>_subtitles.srt` next to each video, with a summary of how many succeeded or failed
 
 ### Why VAD Matters
 
@@ -32,10 +31,17 @@ video_subtitle_generator/
 ├── src/
 │   ├── core/              # Business logic
 │   │   ├── audio_processor.py      # Audio extraction
+│   │   ├── subtitle_controller.py  # Runs jobs in a background thread
 │   │   ├── subtitle_engine.py      # Whisper + VAD transcription
 │   │   └── subtitle_formatter.py   # SRT generation
 │   ├── gui/               # User interface
-│   │   └── app_window.py           # CustomTkinter GUI
+│   │   ├── app_window.py           # Main window and queue processing
+│   │   ├── header.py               # Title and badges
+│   │   ├── video_card.py           # File queue (add / remove / clear)
+│   │   ├── action_panel.py         # Generate button and per-file progress
+│   │   ├── video_tile.py           # Progress tile widgets
+│   │   ├── components.py           # Scrollable container + mouse wheel
+│   │   └── theme.py                # Color palette
 │   └── utils/             # Configuration
 │       └── config.py               # Centralized settings
 ├── main.py                # Entry point
@@ -70,15 +76,13 @@ video_subtitle_generator/
 
 ## 💡 Usage Tips
 
-### Model Selection
-- **tiny**: Fastest, least accurate (~1GB RAM, 32MB download)
-- **base**: ⭐ Recommended - Good balance (1GB RAM, 145MB download)
-- **small**: Better accuracy, slower (2GB RAM, 466MB download)
-- **medium/large**: Best quality, requires powerful GPU (5GB+ RAM, 1-3GB download)
+### Model
+- The app uses the Whisper **base** model (~1GB RAM), a good balance of speed and accuracy
+- It is fixed on purpose, so no other models are ever downloaded
 
 ### First Run
-- First time using a model will download it (~140MB for base)
-- Subsequent runs use cached model (instant startup)
+- The first run downloads the base model once (~145MB)
+- Later runs use the cached model. It is loaded into memory once per app session and reused for every file
 
 ### Performance
 - **CPU**: Works fine, takes 2-3x video duration

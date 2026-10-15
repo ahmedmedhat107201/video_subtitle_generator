@@ -36,21 +36,23 @@ class SubtitleController:
 
     def _run(self, video_path, progress_callback, finished_callback, error_callback):
         try:
-            # initial progress
-            try:
-                progress_callback(0.01, "🔧 Loading AI model...", f"Preparing Whisper {self.model_size} model...", False, False)
-            except Exception:
-                pass
+            # Load the model only once and reuse it for every queued file.
+            # Files are processed sequentially, so sharing the engine is safe.
+            if self.engine is None:
+                try:
+                    progress_callback(0.01, "🔧 Loading AI model...", f"Preparing Whisper {self.model_size} model...", False, False)
+                except Exception:
+                    pass
 
-            # small delay to allow UI to render first
-            time.sleep(0.1)
+                # small delay to allow UI to render first
+                time.sleep(0.1)
 
-            # Initialize engine (heavy operation)
-            self.engine = SubtitleEngine(model_size=self.model_size)
-            try:
-                progress_callback(0.05, "✅ AI model loaded", "Model ready for transcription", False, False)
-            except Exception:
-                pass
+                # Initialize engine (heavy operation)
+                self.engine = SubtitleEngine(model_size=self.model_size)
+                try:
+                    progress_callback(0.05, "✅ AI model loaded", "Model ready for transcription", False, False)
+                except Exception:
+                    pass
 
             # Run generation with the provided progress callback
             output_path = self.engine.generate_subtitles(video_path, progress_callback=progress_callback)

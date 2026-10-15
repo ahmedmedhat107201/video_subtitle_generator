@@ -8,7 +8,7 @@ Features:
 - Modern, professional UI with enhanced UX
 - Faster-whisper with VAD for 100% accurate timestamps
 - GPU acceleration support
-- Modal progress dialog for better workflow
+- Batch queue with per-file progress
 - No phantom subtitles during music/action scenes
 
 Usage:

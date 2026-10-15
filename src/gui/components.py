@@ -16,12 +16,6 @@ def make_scrollable_frame(parent, canvas_bg: str | None = None):
     """
     if canvas_bg is None:
         canvas_bg = BG_DARK
-    """Create and return a tuple (scrollable_frame, canvas).
-
-    The returned `scrollable_frame` is a CTkFrame that should be used as the
-    main container for building the rest of the app. The function wires
-    resizing and scrolling behaviour.
-    """
     outer_frame = ctk.CTkFrame(parent, fg_color="transparent")
     outer_frame.pack(fill="both", expand=True, padx=0, pady=0)
 
@@ -46,25 +40,58 @@ def make_scrollable_frame(parent, canvas_bg: str | None = None):
     scrollable_frame.bind("<Configure>", _on_frame_config)
     canvas.bind("<Configure>", _on_canvas_config)
 
-    # Mouse wheel support: bind to the canvas directly for Windows/macOS and
-    # also support X11 Button-4/5. Callers may still attach a clamping handler
-    # if they want to prevent overscroll.
+    # Mouse wheel support. Bound globally so it works while the pointer is
+    # over any child widget, not just bare canvas. If the pointer is inside a
+    # nested scrollable canvas (e.g. the queued-files list) that one scrolls
+    # instead. Scrolling is clamped so there is no overscroll past the content.
     def _on_mousewheel(event):
-        try:
-            if hasattr(event, "delta"):
-                step = int(-1 * (event.delta / 120))
-            elif hasattr(event, "num"):
-                # X11: Button-4 (up) / Button-5 (down)
-                step = -1 if event.num == 4 else 1 if event.num == 5 else 0
-            else:
-                step = 0
-        except Exception:
-            step = 0
-        canvas.yview_scroll(step, "units")
+        step = _wheel_step(event)
+        if step == 0:
+            return
 
-    # Bind directly to the canvas (not bind_all) to avoid global handlers.
-    canvas.bind("<MouseWheel>", _on_mousewheel)
-    canvas.bind("<Button-4>", _on_mousewheel)
-    canvas.bind("<Button-5>", _on_mousewheel)
+        target = _nested_scroll_target(event, canvas) or canvas
+        first, last = target.yview()
+        if step < 0 and first <= 0.0:
+            return "break"
+        if step > 0 and last >= 1.0:
+            return "break"
+        target.yview_scroll(step, "units")
+        return "break"
+
+    canvas.bind_all("<MouseWheel>", _on_mousewheel)
+    canvas.bind_all("<Button-4>", _on_mousewheel)
+    canvas.bind_all("<Button-5>", _on_mousewheel)
 
     return scrollable_frame, canvas
+
+
+def _wheel_step(event) -> int:
+    """Return -1 (up), 1 (down) or 0 for a mouse wheel event on any platform."""
+    # X11 sends Button-4 (up) / Button-5 (down) with delta == 0
+    if getattr(event, "num", None) == 4:
+        return -1
+    if getattr(event, "num", None) == 5:
+        return 1
+    delta = getattr(event, "delta", 0) or 0
+    if delta > 0:
+        return -1
+    if delta < 0:
+        return 1
+    return 0
+
+
+def _nested_scroll_target(event, main_canvas):
+    """Return a nested tk.Canvas under the pointer that can scroll, if any."""
+    try:
+        widget = event.widget.winfo_containing(event.x_root, event.y_root)
+    except Exception:
+        return None
+
+    while widget is not None and widget is not main_canvas:
+        if isinstance(widget, tk.Canvas):
+            first, last = widget.yview()
+            # Only scroll it when its content is taller than its viewport
+            if first > 0.0 or last < 1.0:
+                return widget
+        widget = getattr(widget, "master", None)
+    return None
