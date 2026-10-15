@@ -10,16 +10,26 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from src.gui.components import make_scrollable_frame
+# Drag & drop is optional: without tkinterdnd2 the app works as before
+try:
+    from tkinterdnd2 import TkinterDnD, DND_FILES
+    DnDBase = TkinterDnD.DnDWrapper
+except Exception:  # not installed or failed to load
+    TkinterDnD = None
+    DnDBase = object
+
+from src.gui.components import make_scrollable_frame, sync_scroll_region
 from src.gui.header import Header
 from src.gui.video_card import VideoCard
 from src.gui.action_panel import ActionPanel
 from src.gui.theme import CANVAS_BG
 from src.core.subtitle_controller import SubtitleController
-from src.core.subtitle_engine import SubtitleEngine
+from src.core.subtitle_engine import SubtitleEngine, TranscriptionCancelled
+
+VIDEO_EXTENSIONS = (".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm")
 
 
-class SubtitleAppWindow(ctk.CTk):
+class SubtitleAppWindow(ctk.CTk, DnDBase):
     """Modern, professional GUI for subtitle generation with enhanced UX."""
 
     def __init__(self):
@@ -39,13 +49,14 @@ class SubtitleAppWindow(ctk.CTk):
 
         # Build modern UI
         self._build_ui()
+        self._setup_drag_and_drop()
         # Controller that performs processing in background threads
         self.controller = SubtitleController(model_size="base")
 
     def _build_ui(self):
         """Build the modern, professional user interface."""
         # Scrollable main container (mouse wheel handling lives in the helper)
-        main_container, _canvas = make_scrollable_frame(self, canvas_bg=CANVAS_BG)
+        main_container, self._page_canvas = make_scrollable_frame(self, canvas_bg=CANVAS_BG)
 
         # ===== HEADER SECTION =====
         self.header = Header(main_container)
@@ -61,15 +72,57 @@ class SubtitleAppWindow(ctk.CTk):
         self.browse_button = video.browse_button
 
         # ===== ACTION SECTION =====
-        self.action_panel = ActionPanel(content_frame, generate_command=self._generate_subtitles)
+        self.action_panel = ActionPanel(
+            content_frame,
+            generate_command=self._generate_subtitles,
+            cancel_command=self._cancel_queue,
+        )
         self.generate_button = self.action_panel.generate_button
+
+    def _setup_drag_and_drop(self):
+        """Let users drop video files onto the window (if tkinterdnd2 works here)."""
+        if TkinterDnD is None:
+            logger.warning("⚠️  Drag & drop unavailable (tkinterdnd2 not installed)")
+            return
+        try:
+            self.TkdndVersion = TkinterDnD._require(self)
+            self.drop_target_register(DND_FILES)
+            self.dnd_bind("<<Drop>>", self._on_drop)
+            self.dnd_bind("<<DropEnter>>", self._on_drag_enter)
+            self.dnd_bind("<<DropLeave>>", self._on_drag_leave)
+            self.video_card.show_drop_hint()
+        except Exception as exc:
+            logger.warning(f"⚠️  Drag & drop unavailable ({exc})")
+
+    def _on_drag_enter(self, event):
+        """Files are being dragged over the window: highlight the file card."""
+        if not self._processing:
+            self.video_card.set_drop_highlight(True)
+        return event.action
+
+    def _on_drag_leave(self, event):
+        self.video_card.set_drop_highlight(False)
+        return event.action
+
+    def _on_drop(self, event):
+        """Queue the video files dropped on the window; other files are ignored."""
+        self.video_card.set_drop_highlight(False)
+        if self._processing:
+            return event.action
+        paths = self.tk.splitlist(event.data)
+        videos = [p for p in paths if os.path.splitext(p)[1].lower() in VIDEO_EXTENSIONS]
+        if len(videos) < len(paths):
+            logger.info(f"Ignored {len(paths) - len(videos)} dropped file(s) that are not supported videos")
+        if videos:
+            self.video_card.add_files(videos)
+        return event.action
 
     def _add_videos(self):
         """Open dialog to add one or more video files to the queue."""
         file_paths = filedialog.askopenfilenames(
             title="Select Video Files",
             filetypes=[
-                ("Video files", "*.mp4 *.avi *.mkv *.mov *.wmv *.flv *.webm"),
+                ("Video files", " ".join(f"*{ext}" for ext in VIDEO_EXTENSIONS)),
                 ("All files", "*.*")
             ]
         )
@@ -82,11 +135,13 @@ class SubtitleAppWindow(ctk.CTk):
 
     def _on_queue_changed(self, count):
         """Enable Generate only when files are queued and nothing is running."""
+        if count == 0:
+            # The file list was hidden: shrink the page and scroll back up
+            self.after_idle(self._fit_page)
         button = getattr(self, "generate_button", None)
-        if button is None:
+        if button is None or self._processing:
             return
-        enabled = count > 0 and not self._processing
-        button.configure(state="normal" if enabled else "disabled")
+        button.configure(state="normal" if count > 0 else "disabled")
 
     def _generate_subtitles(self):
         """Start subtitle generation for the queued files (sequential)."""
@@ -98,14 +153,13 @@ class SubtitleAppWindow(ctk.CTk):
             )
             return
 
-        # Disable interaction
+        # Disable interaction; the Generate button becomes Cancel
         self._processing = True
+        self._cancelled = False
+        self.controller.reset_cancel()
+        self.action_panel.set_processing(True)
         try:
             self.browse_button.configure(state="disabled")
-        except Exception:
-            pass
-        try:
-            self.generate_button.configure(state="disabled")
         except Exception:
             pass
 
@@ -141,6 +195,24 @@ class SubtitleAppWindow(ctk.CTk):
 
         # Start processing first file after short delay so the UI updates
         self.after(100, lambda: self._start_next_in_queue())
+
+    def _fit_page(self):
+        """Shrink the page to its content after a list is hidden, and scroll to the top.
+
+        Hiding content does not resize the scrollable page by itself, which
+        left the scrollbar stuck at the bottom.
+        """
+        self.update_idletasks()
+        sync_scroll_region(self._page_canvas)
+        self._page_canvas.yview_moveto(0)
+
+    def _cancel_queue(self):
+        """Stop the current file as soon as possible and skip the rest."""
+        if not self._processing or self._cancelled:
+            return
+        self._cancelled = True
+        self.controller.cancel()
+        self.generate_button.configure(text="⏹ Cancelling…", state="disabled")
 
     def run(self):
         """Start the application."""
@@ -213,6 +285,11 @@ class SubtitleAppWindow(ctk.CTk):
     def _on_queue_file_error(self, exc: Exception):
         """Called from worker thread when a file errors; marshal to main thread and continue."""
         try:
+            if isinstance(exc, TranscriptionCancelled):
+                self.after(0, self.action_panel.update_progress_ui, 0, "⏹ Cancelled", "", False, True, self._current_index)
+                self.after(0, self._finish_queue, self._current_index + 1)
+                return
+
             err = str(exc)
             # Target the current queue item row when showing an error state.
             self.after(0, self.action_panel.update_progress_ui, 0, "❌ Failed", err, False, True, self._current_index)
@@ -235,14 +312,28 @@ class SubtitleAppWindow(ctk.CTk):
     def _advance_queue(self):
         """Move to the next queued file, or finish and show a summary."""
         self._current_index += 1
-        if self._current_index < len(self._queue):
+        if self._current_index < len(self._queue) and not self._cancelled:
             self._start_next_in_queue()
             return
+        self._finish_queue(self._current_index)
+
+    def _finish_queue(self, first_unstarted=None):
+        """Restore the UI and show a summary of the queue.
+
+        first_unstarted: index of the first file that never started (used to
+        label the remaining rows after a cancel).
+        """
+        if self._cancelled and first_unstarted is not None:
+            # Label the files that were never started
+            self.action_panel.mark_rows(first_unstarted, "⏭ Not processed")
+            self.update_idletasks()
 
         self.action_panel.hide_video_tile()
+        self._fit_page()
 
         # re-enable UI; Generate follows the (now empty) queue
         self._processing = False
+        self.action_panel.set_processing(False)
         try:
             self.browse_button.configure(state="normal")
             self.video_card.clear_button.configure(state="normal")
@@ -250,14 +341,22 @@ class SubtitleAppWindow(ctk.CTk):
             pass
         self._on_queue_changed(len(self.video_card.get_queue()))
 
-        if self._failed:
-            failed_list = "\n".join(f"• {name}" for name in self._failed)
-            messagebox.showwarning(
-                "Finished with errors",
-                f"{self._succeeded} succeeded, {len(self._failed)} failed:\n{failed_list}"
-            )
+        not_processed = len(self._queue) - self._succeeded - len(self._failed)
+        failed_list = "\n".join(f"• {name}" for name in self._failed)
+
+        if self._cancelled:
+            title = "Cancelled ⏹"
+            message = f"Cancelled – {self._succeeded} done, {not_processed} not processed."
+            if self._failed:
+                message += f"\n\n{len(self._failed)} failed:\n{failed_list}"
+        elif self._failed:
+            title = "Finished with errors"
+            message = f"{self._succeeded} succeeded, {len(self._failed)} failed:\n{failed_list}"
         else:
-            messagebox.showinfo(
-                "All Done 🎉",
-                f"Subtitles generated for {self._succeeded} file(s)."
-            )
+            title = "All Done 🎉"
+            message = f"Subtitles generated for {self._succeeded} file(s)."
+
+        if self._cancelled or self._failed:
+            messagebox.showwarning(title, message)
+        else:
+            messagebox.showinfo(title, message)

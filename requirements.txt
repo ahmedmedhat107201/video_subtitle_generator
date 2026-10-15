@@ -5,6 +5,9 @@
 faster-whisper>=1.2.1
 customtkinter>=5.2.2
 
+# Drag & drop video files onto the window (optional: the app runs without it)
+tkinterdnd2>=0.4.2
+
 # GPU Acceleration (NVIDIA)
 # cuBLAS and cuDNN let faster-whisper run on an NVIDIA GPU (only the NVIDIA
 # driver is needed, no CUDA Toolkit). Without a usable GPU the app

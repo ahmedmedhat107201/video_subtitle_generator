@@ -25,3 +25,4 @@ MUTED = "#94A3B8"
 # Danger (red) for destructive actions
 DANGER = "#EF4444"
 DANGER_HOVER = "#DC2626"
+DANGER_SOFT = "#3B1A20"  # dark red tint for subtle hover backgrounds

@@ -7,14 +7,17 @@ A professional desktop application for generating accurate English subtitles fro
 - **🎯 100% Accurate Timestamps**: VAD ensures subtitles sync perfectly, even during music/action scenes
 - **🚀 GPU Acceleration**: Automatic NVIDIA GPU detection, with automatic fallback to CPU if the GPU can't be used
 - **🎨 Modern GUI**: Beautiful dark-themed interface using CustomTkinter
-- **📂 Batch Queue**: Add several videos and process them one after another, each with its own progress bar
+- **⚡ Batched Transcription**: Transcribes several speech chunks at once (about 3.5x faster on GPU)
+- **📖 Readable Subtitles**: Word-level timing; lines of at most 42 characters, 2 rows and 7 seconds, ending when the speech ends
+- **📂 Batch Queue**: Add videos with the button or by drag & drop (the file card lights up while you drag); each gets its own live progress bar, and the queue can be cancelled
+- **🎧 Smart Audio Track**: Videos with several audio tracks use the English one
 - **📹 Format Support**: MP4, AVI, MOV, MKV, WMV, FLV, WebM
 - **💪 Production Ready**: Clean modular architecture with proper separation of concerns
 
 ## 🔧 How It Works
 
-1. **Add Videos**: Add one or more video files to the queue
-2. **Generate**: App reads the audio straight from the video (no temporary files), detects speech with VAD, and transcribes each file in turn
+1. **Add Videos**: Click **Add Files** or drag & drop videos onto the window
+2. **Generate**: App reads the audio straight from the video (no temporary files), detects speech with VAD, and transcribes each file in turn. Click **Cancel** at any time to stop
 3. **Done**: Subtitles saved as `<video name>_subtitles.srt` next to each video, with a summary of how many succeeded or failed
 
 ### Why VAD Matters
@@ -33,17 +36,18 @@ video_subtitle_generator/
 │   │   ├── audio_processor.py      # Audio loading
 │   │   ├── subtitle_controller.py  # Runs jobs in a background thread
 │   │   ├── subtitle_engine.py      # Whisper + VAD transcription
-│   │   └── subtitle_formatter.py   # SRT generation
+│   │   └── subtitle_formatter.py   # Readable cues + SRT output
 │   ├── gui/               # User interface
 │   │   ├── app_window.py           # Main window and queue processing
 │   │   ├── header.py               # Title and badges
 │   │   ├── video_card.py           # File queue (add / remove / clear)
-│   │   ├── action_panel.py         # Generate button and per-file progress
+│   │   ├── action_panel.py         # Generate/Cancel and per-file progress
 │   │   ├── video_tile.py           # Progress tile widgets
 │   │   ├── components.py           # Scrollable container + mouse wheel
 │   │   └── theme.py                # Color palette
 │   └── utils/             # Configuration
 │       └── config.py               # Centralized settings
+├── tests/                 # Unit tests (python -m unittest discover tests)
 ├── main.py                # Entry point
 ├── requirements.txt       # Dependencies
 └── README.md              # This file
@@ -83,9 +87,13 @@ video_subtitle_generator/
 - Later runs use the cached model. It is loaded into memory once per app session and reused for every file
 
 ### Performance
-- **CPU**: Works fine, takes 2-3x video duration
-- **GPU**: Much faster, ~0.5-1x video duration
+- **GPU**: A 22-minute episode takes about 8 seconds on an RTX 3050 Laptop GPU
+- **CPU**: Slower, but works everywhere
 - **Long videos**: Automatically handled, no chunking needed
+
+### Subtitle Layout
+Line length, rows, on-screen time and pause handling are set in `src/utils/config.py`
+(`MAX_CHARS_PER_LINE`, `MAX_LINES`, `MAX_CUE_DURATION`, `MIN_CUE_DURATION`, `PAUSE_BREAK`).
 
 ## 🛠️ Technologies
 
@@ -93,7 +101,7 @@ video_subtitle_generator/
 |-----------|-----------|---------|
 | AI Model | faster-whisper | Speech-to-text transcription |
 | VAD | Silero VAD | Voice activity detection |
-| GUI | CustomTkinter | Modern dark-themed interface |
+| GUI | CustomTkinter + tkinterdnd2 | Modern dark-themed interface, drag & drop |
 | Media | PyAV (FFmpeg, via faster-whisper) | Reading audio from video files |
 | Acceleration | CTranslate2 + CUDA (cuBLAS/cuDNN) | GPU computing, CPU fallback |
 
@@ -112,6 +120,14 @@ min_speech_duration_ms=250      # Minimum speech segment
 min_silence_duration_ms=2000    # Silence between segments
 speech_pad_ms=400               # Padding around speech
 ```
+
+## 🧪 Tests
+
+```bash
+python -m unittest discover tests
+```
+
+The tests cover subtitle layout, SRT output, audio track selection, cancelling and the GPU→CPU fallback. They don't load the real model, so they run in under a second.
 
 ## 🤝 Contributing
 

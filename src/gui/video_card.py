@@ -1,7 +1,13 @@
 import os
 import tkinter as tk
 import customtkinter as ctk
-from src.gui.theme import PRIMARY, PRIMARY_HOVER, MUTED, DANGER, DANGER_HOVER, CARD_DARK, TEXT, BG_DARK
+from src.gui.theme import PRIMARY, PRIMARY_HOVER, MUTED, DANGER, DANGER_SOFT, CARD_DARK, TEXT, BG_DARK
+from src.gui.components import RemoveButton, sync_scroll_region
+
+SUPPORTED_TEXT = "Supported: MP4, AVI, MKV, MOV, WMV, FLV, WEBM"
+HEADER_TEXT = "📁 Select Video File"
+DROP_HEADER_TEXT = "📥 Drop to add videos"
+DROP_PULSE_MS = 450  # border pulse speed while files are dragged over the window
 
 
 class VideoCard:
@@ -11,12 +17,14 @@ class VideoCard:
         # Called with the queue length whenever files are added or removed
         self._on_change = on_change
 
-        self.card = ctk.CTkFrame(parent, corner_radius=15, fg_color=CARD_DARK)
+        # The border matches the card until files are dragged over the window
+        self.card = ctk.CTkFrame(parent, corner_radius=15, fg_color=CARD_DARK,
+                                 border_width=2, border_color=CARD_DARK)
         self.card.pack(fill="x", pady=(0, 25))
 
         self.header_label = ctk.CTkLabel(
             self.card,
-            text="📁 Select Video File",
+            text=HEADER_TEXT,
             font=ctk.CTkFont(size=16, weight="bold"),
             anchor="w",
             text_color=TEXT,
@@ -68,13 +76,13 @@ class VideoCard:
         )
         self.clear_button.pack(side="left", fill="x", expand=False)
 
-        formats_label = ctk.CTkLabel(
+        self.formats_label = ctk.CTkLabel(
             self.body,
-            text="Supported: MP4, AVI, MKV, MOV, WMV, FLV, WEBM",
+            text=SUPPORTED_TEXT,
             font=ctk.CTkFont(size=11),
             text_color=("#9CA3AF", "#6B7280"),
         )
-        formats_label.pack(pady=(0, 15))
+        self.formats_label.pack(pady=(0, 15))
 
         # Internal queue state
         self._queue = []
@@ -110,7 +118,7 @@ class VideoCard:
         # Keep canvas scrollregion in sync and ensure inner frame width tracks
         def _on_inner_config(event):
             try:
-                self._list_canvas.configure(scrollregion=self._list_canvas.bbox("all"))
+                sync_scroll_region(self._list_canvas)
             except Exception:
                 pass
 
@@ -125,6 +133,33 @@ class VideoCard:
 
         # Mouse wheel scrolling for this list is handled by the global handler
         # in src.gui.components.make_scrollable_frame.
+
+    def show_drop_hint(self):
+        """Mention drag & drop under the buttons (only when it is available)."""
+        self._drop_hint_text = f"or drag & drop videos here  •  {SUPPORTED_TEXT}"
+        self.formats_label.configure(text=self._drop_hint_text)
+
+    def set_drop_highlight(self, active: bool):
+        """Show that files can be dropped: a gently pulsing border and a hint."""
+        if active == getattr(self, "_drop_active", False):
+            return
+        self._drop_active = active
+        if active:
+            self.header_label.configure(text=DROP_HEADER_TEXT, text_color=PRIMARY_HOVER)
+            self.formats_label.configure(text="Release to add them to the queue")
+            self._pulse(True)
+        else:
+            if getattr(self, "_pulse_job", None):
+                self.card.after_cancel(self._pulse_job)
+                self._pulse_job = None
+            self.card.configure(border_color=CARD_DARK)
+            self.header_label.configure(text=HEADER_TEXT, text_color=TEXT)
+            self.formats_label.configure(text=getattr(self, "_drop_hint_text", SUPPORTED_TEXT))
+
+    def _pulse(self, bright: bool):
+        """Alternate the border between two shades of the accent color."""
+        self.card.configure(border_color=PRIMARY_HOVER if bright else PRIMARY)
+        self._pulse_job = self.card.after(DROP_PULSE_MS, self._pulse, not bright)
 
     # Queue management API
     def add_files(self, file_paths):
@@ -167,6 +202,8 @@ class VideoCard:
         # Clear current inner list widgets
         for child in self.inner_list_frame.winfo_children():
             child.destroy()
+        # A new list always starts at the top
+        self._list_canvas.yview_moveto(0)
 
         if not self._queue:
             self.file_label.configure(text="No files in queue")
@@ -202,11 +239,11 @@ class VideoCard:
             label = ctk.CTkLabel(row, text=f"{idx}. {name}", anchor="w", text_color=("white","white"))
             label.pack(side="left", fill="x", expand=True)
 
-            # small remove button
-            remove_btn = ctk.CTkButton(row, text="✖", width=28, height=24, corner_radius=8,
-                                      fg_color=DANGER, hover_color=DANGER_HOVER,
-                                      command=lambda p=path: self._remove_item(p))
-            remove_btn.pack(side="right")
+            # small round remove button: a red ✕ that gets a soft red
+            # circle on hover
+            remove_btn = RemoveButton(row, command=lambda p=path: self._remove_item(p),
+                                      bg=BG_DARK, color=DANGER, hover_bg=DANGER_SOFT)
+            remove_btn.pack(side="right", padx=(6, 4))
 
     def _remove_item(self, path):
         try:

@@ -16,6 +16,27 @@ class Config:
     # Audio processing settings
     AUDIO_SAMPLE_RATE = 16000  # Whisper requires 16kHz
     
+    # Batched inference: transcribes several speech chunks at once.
+    # Measured on a 22-min episode (GPU): 3.5x faster and slightly more
+    # accurate than sequential. Set USE_BATCHED = False to go back.
+    USE_BATCHED = True
+    BATCH_SIZE = 8
+
+    # GPU precision. "int8_float16" was measured too: only ~64 MB less GPU
+    # memory and slightly less accurate, so float16 is kept.
+    GPU_COMPUTE_TYPE = "float16"
+
+    # Subtitle layout (how words are grouped into on-screen lines)
+    MAX_CHARS_PER_LINE = 42
+    MAX_LINES = 2
+    MAX_CUE_DURATION = 7.0      # seconds a cue may stay on screen
+    MIN_CUE_DURATION = 1.0      # short cues are extended into the following gap
+    READING_SPEED_CPS = 15      # a cue stays long enough to read at this many characters/second
+    END_TAIL = 0.6              # and at least this long (s) after the speech ends
+    # (both only use free time: a cue never runs into the next one)
+    PAUSE_BREAK = 0.8           # a pause this long (s) between words starts a new cue
+    MIN_CUE_GAP = 0.05          # keep cues from touching when extended
+
     # Transcription quality settings
     BEAM_SIZE = 5
     BEST_OF = 5
@@ -63,4 +84,4 @@ class Config:
     @staticmethod
     def get_compute_type(device):
         """Get appropriate compute type based on device."""
-        return "float16" if device == "cuda" else "int8"
+        return Config.GPU_COMPUTE_TYPE if device == "cuda" else "int8"

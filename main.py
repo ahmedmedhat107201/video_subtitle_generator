@@ -16,7 +16,7 @@ Usage:
 """
 import logging
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format="%(message)s")
 
 from src.gui.app_window import SubtitleAppWindow
 

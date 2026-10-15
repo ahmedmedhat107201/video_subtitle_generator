@@ -2,22 +2,28 @@ import logging
 
 import customtkinter as ctk
 from src.gui.video_tile import make_video_tile
-from src.gui.theme import PRIMARY, PRIMARY_HOVER, MUTED, DANGER, ACCENT
+from src.gui.theme import PRIMARY, PRIMARY_HOVER, MUTED, DANGER, DANGER_HOVER, ACCENT
 
 
 logger = logging.getLogger(__name__)
 
+GENERATE_TEXT = "🎬 Generate Subtitles"
+CANCEL_TEXT = "⏹ Cancel"
+
 
 class ActionPanel:
-    """Encapsulates the action area with Generate button and the video tile."""
+    """Encapsulates the action area: Generate/Cancel button and the video tile."""
 
-    def __init__(self, parent, generate_command=None):
+    def __init__(self, parent, generate_command=None, cancel_command=None):
         self.frame = ctk.CTkFrame(parent, fg_color="transparent")
         self.frame.pack(fill="x")
 
+        self._generate_command = generate_command
+        self._cancel_command = cancel_command
+
         self.generate_button = ctk.CTkButton(
             self.frame,
-            text="🎬 Generate Subtitles",
+            text=GENERATE_TEXT,
             command=generate_command,
             height=60,
             font=ctk.CTkFont(size=18, weight="bold"),
@@ -34,6 +40,31 @@ class ActionPanel:
 
         # track if a queue is being processed
         self._processing_queue = False
+
+    def set_processing(self, processing: bool):
+        """Switch between Generate mode and Cancel mode while a queue runs.
+
+        Leaving Cancel mode does not enable the Generate button; the window
+        decides that from the queue contents.
+        """
+        if processing:
+            self.generate_button.configure(
+                text=CANCEL_TEXT, command=self._cancel_command, state="normal",
+                fg_color=DANGER, hover_color=DANGER_HOVER,
+            )
+        else:
+            self.generate_button.configure(
+                text=GENERATE_TEXT, command=self._generate_command,
+                fg_color=PRIMARY, hover_color=PRIMARY_HOVER,
+            )
+
+    def mark_rows(self, start_index: int, message: str):
+        """Set the status text of every queue row from `start_index` on."""
+        for item in self.video_widgets.get("queue_items", [])[start_index:]:
+            try:
+                item["status"].configure(text=message)
+            except Exception:
+                pass
 
     # --- Progress UI control helpers ---
     def show_video_tile(self, video_title: str = None):

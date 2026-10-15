@@ -31,7 +31,7 @@ def make_scrollable_frame(parent, canvas_bg: str | None = None):
 
     # Keep canvas scrollregion in sync with the size of the inner frame
     def _on_frame_config(event):
-        canvas.configure(scrollregion=canvas.bbox("all"))
+        sync_scroll_region(canvas)
 
     def _on_canvas_config(event):
         # make the inner frame width match the canvas width
@@ -65,6 +65,18 @@ def make_scrollable_frame(parent, canvas_bg: str | None = None):
     return scrollable_frame, canvas
 
 
+def sync_scroll_region(canvas):
+    """Fit the canvas scroll area to its content.
+
+    When the content becomes shorter than the view (e.g. a list is emptied),
+    scroll back to the top so the scrollbar doesn't stay stuck at the bottom.
+    """
+    bbox = canvas.bbox("all")
+    canvas.configure(scrollregion=bbox)
+    if bbox is None or bbox[3] - bbox[1] <= canvas.winfo_height():
+        canvas.yview_moveto(0)
+
+
 def _wheel_step(event) -> int:
     """Return -1 (up), 1 (down) or 0 for a mouse wheel event on any platform."""
     # X11 sends Button-4 (up) / Button-5 (down) with delta == 0
@@ -95,3 +107,26 @@ def _nested_scroll_target(event, main_canvas):
                 return widget
         widget = getattr(widget, "master", None)
     return None
+
+
+class RemoveButton(tk.Canvas):
+    """A small round ✕ button: thin red cross, soft red circle on hover.
+
+    Drawn on a canvas because CTkButton pads rounded corners and cannot be
+    made into a small circle.
+    """
+
+    def __init__(self, parent, command, size=20, bg=BG_DARK,
+                 color="#EF4444", hover_bg="#3B1A20"):
+        scale = ctk.ScalingTracker.get_widget_scaling(parent)
+        px = int(round(size * scale))
+        super().__init__(parent, width=px, height=px, bg=bg, highlightthickness=0, cursor="hand2")
+        self._command = command
+        self._circle = self.create_oval(1, 1, px - 1, px - 1, fill=bg, outline="")
+        inset = px * 0.34
+        for x0, y0, x1, y1 in ((inset, inset, px - inset, px - inset), (inset, px - inset, px - inset, inset)):
+            self.create_line(x0, y0, x1, y1, fill=color, width=max(1.5, 1.6 * scale), capstyle="round")
+        self._bg, self._hover_bg = bg, hover_bg
+        self.bind("<Enter>", lambda e: self.itemconfigure(self._circle, fill=self._hover_bg))
+        self.bind("<Leave>", lambda e: self.itemconfigure(self._circle, fill=self._bg))
+        self.bind("<Button-1>", lambda e: self._command())

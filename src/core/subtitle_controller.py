@@ -16,6 +16,16 @@ class SubtitleController:
     def __init__(self, model_size: str = "base"):
         self.model_size = model_size
         self.engine: Optional[SubtitleEngine] = None
+        # Shared by every file of a queue; set by cancel()
+        self._cancel_event = threading.Event()
+
+    def cancel(self):
+        """Ask the running (and any following) file to stop as soon as possible."""
+        self._cancel_event.set()
+
+    def reset_cancel(self):
+        """Clear a previous cancel request; call when a new queue starts."""
+        self._cancel_event.clear()
 
     def start(self, video_path: str,
               progress_callback: Callable[[float, str, str, bool, bool], None],
@@ -25,7 +35,7 @@ class SubtitleController:
 
         progress_callback(value, message, detail, success, error)
         finished_callback(output_path)
-        error_callback(exception)
+        error_callback(exception)  # TranscriptionCancelled when cancelled
         """
         thread = threading.Thread(
             target=self._run,
@@ -55,7 +65,11 @@ class SubtitleController:
                     pass
 
             # Run generation with the provided progress callback
-            output_path = self.engine.generate_subtitles(video_path, progress_callback=progress_callback)
+            output_path = self.engine.generate_subtitles(
+                video_path,
+                progress_callback=progress_callback,
+                cancel_event=self._cancel_event,
+            )
 
             # finished
             try:
