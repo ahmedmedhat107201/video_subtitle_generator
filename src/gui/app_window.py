@@ -1,12 +1,14 @@
 """
-Modern, professional GUI for subtitle generator using CustomTkinter.
-Redesigned with focus on aesthetics, usability, and user experience.
+Main window of the subtitle generator.
+
+Layout (top to bottom): top bar, drop zone, queue list, action bar.
+Only the queue list scrolls; everything else stays in place.
 """
-import os
-from tkinter import messagebox
-import customtkinter as ctk
-from tkinter import filedialog
 import logging
+import os
+from tkinter import filedialog
+
+import customtkinter as ctk
 
 logger = logging.getLogger(__name__)
 
@@ -18,66 +20,68 @@ except Exception:  # not installed or failed to load
     TkinterDnD = None
     DnDBase = object
 
-from src.gui.components import make_scrollable_frame, sync_scroll_region
+from src.gui import theme
+from src.gui.action_bar import ActionBar
+from src.gui.drop_zone import DropZone
 from src.gui.header import Header
-from src.gui.video_card import VideoCard
-from src.gui.action_panel import ActionPanel
-from src.gui.theme import CANVAS_BG
+from src.gui.queue_list import QueueList
+from src.gui.queue_model import CANCELLED, DONE, FAILED, QUEUED, RUNNING, QueueModel
 from src.core.subtitle_controller import SubtitleController
 from src.core.subtitle_engine import SubtitleEngine, TranscriptionCancelled
 
 VIDEO_EXTENSIONS = (".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm")
 
 
+def _plural(count, word):
+    return f"{count} {word}" + ("" if count == 1 else "s")
+
+
 class SubtitleAppWindow(ctk.CTk, DnDBase):
-    """Modern, professional GUI for subtitle generation with enhanced UX."""
+    """Main application window."""
 
     def __init__(self):
         super().__init__()
 
-        # Configure window
-        self.title("AI Subtitle Generator")
-        self.geometry("900x650")
-        self.minsize(800, 600)
+        self.title("Subtitle Generator")
+        self.geometry("900x680")
+        self.minsize(760, 560)
 
-        # Set modern appearance
         ctk.set_appearance_mode("dark")
-        ctk.set_default_color_theme("blue")
+        self.configure(fg_color=theme.BG)
 
+        self.queue = QueueModel()
         # True while a queue is being processed
         self._processing = False
+        self._cancelled = False
 
-        # Build modern UI
         self._build_ui()
         self._setup_drag_and_drop()
         # Controller that performs processing in background threads
         self.controller = SubtitleController(model_size="base")
+        self._refresh()
 
+    # ----- Layout -----
     def _build_ui(self):
-        """Build the modern, professional user interface."""
-        # Scrollable main container (mouse wheel handling lives in the helper)
-        main_container, self._page_canvas = make_scrollable_frame(self, canvas_bg=CANVAS_BG)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(3, weight=1)
 
-        # ===== HEADER SECTION =====
-        self.header = Header(main_container)
+        self.header = Header(self)
+        self.header.frame.grid(row=0, column=0, sticky="ew")
+        self.header.divider.grid(row=1, column=0, sticky="ew")
         self.header.set_device(SubtitleEngine.detect_device())
 
-        # ===== CONTENT SECTION =====
-        content_frame = ctk.CTkFrame(main_container, fg_color="transparent")
-        content_frame.pack(fill="both", expand=True, padx=40, pady=30)
+        self.drop_zone = DropZone(self, browse_command=self._add_videos)
+        self.drop_zone.grid(row=2, column=0, sticky="ew",
+                            padx=theme.SPACE_XL, pady=(theme.SPACE_XL, theme.SPACE_L))
 
-        # Video selection / queue card
-        video = VideoCard(content_frame, browse_command=self._add_videos, on_change=self._on_queue_changed)
-        self.video_card = video
-        self.browse_button = video.browse_button
+        self.queue_list = QueueList(self, on_remove=self._remove_video, on_clear=self._clear_queue)
+        self.queue_list.frame.grid(row=3, column=0, sticky="nsew",
+                                   padx=theme.SPACE_XL, pady=(0, theme.SPACE_L))
 
-        # ===== ACTION SECTION =====
-        self.action_panel = ActionPanel(
-            content_frame,
-            generate_command=self._generate_subtitles,
-            cancel_command=self._cancel_queue,
-        )
-        self.generate_button = self.action_panel.generate_button
+        self.action_bar = ActionBar(self, generate_command=self._generate_subtitles,
+                                    cancel_command=self._cancel_queue)
+        self.action_bar.divider.grid(row=4, column=0, sticky="ew")
+        self.action_bar.frame.grid(row=5, column=0, sticky="ew")
 
     def _setup_drag_and_drop(self):
         """Let users drop video files onto the window (if tkinterdnd2 works here)."""
@@ -90,35 +94,36 @@ class SubtitleAppWindow(ctk.CTk, DnDBase):
             self.dnd_bind("<<Drop>>", self._on_drop)
             self.dnd_bind("<<DropEnter>>", self._on_drag_enter)
             self.dnd_bind("<<DropLeave>>", self._on_drag_leave)
-            self.video_card.show_drop_hint()
+            self.drop_zone.set_drag_and_drop(True)
         except Exception as exc:
             logger.warning(f"⚠️  Drag & drop unavailable ({exc})")
 
+    # ----- Adding / removing videos -----
     def _on_drag_enter(self, event):
-        """Files are being dragged over the window: highlight the file card."""
         if not self._processing:
-            self.video_card.set_drop_highlight(True)
+            self.drop_zone.set_drag_over(True)
         return event.action
 
     def _on_drag_leave(self, event):
-        self.video_card.set_drop_highlight(False)
+        self.drop_zone.set_drag_over(False)
         return event.action
 
     def _on_drop(self, event):
         """Queue the video files dropped on the window; other files are ignored."""
-        self.video_card.set_drop_highlight(False)
+        self.drop_zone.set_drag_over(False)
         if self._processing:
             return event.action
         paths = self.tk.splitlist(event.data)
         videos = [p for p in paths if os.path.splitext(p)[1].lower() in VIDEO_EXTENSIONS]
         if len(videos) < len(paths):
             logger.info(f"Ignored {len(paths) - len(videos)} dropped file(s) that are not supported videos")
-        if videos:
-            self.video_card.add_files(videos)
+        self._add_paths(videos)
         return event.action
 
     def _add_videos(self):
-        """Open dialog to add one or more video files to the queue."""
+        """Open the file dialog to add one or more videos."""
+        if self._processing:
+            return
         file_paths = filedialog.askopenfilenames(
             title="Select Video Files",
             filetypes=[
@@ -126,182 +131,117 @@ class SubtitleAppWindow(ctk.CTk, DnDBase):
                 ("All files", "*.*")
             ]
         )
+        self._add_paths(file_paths)
 
-        if not file_paths:
+    def _add_paths(self, paths):
+        if paths and self.queue.add(paths):
+            self.action_bar.clear_result()
+            self._refresh()
+
+    def _remove_video(self, path):
+        if not self._processing:
+            self.queue.remove(path)
+            self._refresh()
+
+    def _clear_queue(self):
+        if not self._processing:
+            self.queue.clear()
+            self.action_bar.clear_result()
+            self._refresh()
+
+    # ----- UI state -----
+    def _refresh(self):
+        """Redraw the list and update the summary and the main button."""
+        self.queue_list.render(self.queue, editable=not self._processing)
+        self._update_summary()
+        if not self._processing:
+            self.action_bar.set_mode("generate", enabled=bool(self.queue.pending()))
+
+    def _update_summary(self):
+        counts = self.queue.counts()
+        total = len(self.queue.items)
+        if total == 0:
+            self.action_bar.set_summary("No videos in the queue")
             return
+        parts = [_plural(total, "video")]
+        for status, word in ((RUNNING, "processing"), (QUEUED, "queued"), (DONE, "done"),
+                             (FAILED, "failed"), (CANCELLED, "cancelled")):
+            if counts[status]:
+                parts.append(f"{counts[status]} {word}")
+        self.action_bar.set_summary("  ·  ".join(parts))
 
-        # Generate is enabled through _on_queue_changed
-        self.video_card.add_files(file_paths)
-
-    def _on_queue_changed(self, count):
-        """Enable Generate only when files are queued and nothing is running."""
-        if count == 0:
-            # The file list was hidden: shrink the page and scroll back up
-            self.after_idle(self._fit_page)
-        button = getattr(self, "generate_button", None)
-        if button is None or self._processing:
-            return
-        button.configure(state="normal" if count > 0 else "disabled")
-
+    # ----- Processing -----
     def _generate_subtitles(self):
-        """Start subtitle generation for the queued files (sequential)."""
-        queue = self.video_card.get_queue() if hasattr(self, "video_card") else []
-        if not queue:
-            messagebox.showwarning(
-                "No Video Selected",
-                "Please add one or more video files to the queue first"
-            )
+        """Process every queued video, one after another."""
+        if self._processing or not self.queue.pending():
             return
-
-        # Disable interaction; the Generate button becomes Cancel
         self._processing = True
         self._cancelled = False
+        self._run_done = 0
+        self._run_failed = 0
         self.controller.reset_cancel()
-        self.action_panel.set_processing(True)
-        try:
-            self.browse_button.configure(state="disabled")
-        except Exception:
-            pass
 
-        # Ensure main window stays visible and focused
-        self.state('normal')
-        self.lift()
-        self.update_idletasks()
-
-        # Begin sequential processing of the queue
-        self._queue = queue
-        self._current_index = 0
-        self._succeeded = 0
-        self._failed = []
-        # Render the queue in the action panel (shows list with 0% for others)
-        try:
-            self.action_panel.show_video_queue(self._queue)
-        except Exception:
-            pass
-
-        # Clear and hide the selected-files list from the VideoCard since the
-        # generating tile now contains the queue. This keeps the UI focused
-        # on generation and prevents duplicate lists.
-        try:
-            self.video_card.clear_queue()
-        except Exception:
-            pass
-
-        # Disable the clear button while processing
-        try:
-            self.video_card.clear_button.configure(state="disabled")
-        except Exception:
-            pass
-
-        # Start processing first file after short delay so the UI updates
-        self.after(100, lambda: self._start_next_in_queue())
-
-    def _fit_page(self):
-        """Shrink the page to its content after a list is hidden, and scroll to the top.
-
-        Hiding content does not resize the scrollable page by itself, which
-        left the scrollbar stuck at the bottom.
-        """
-        self.update_idletasks()
-        sync_scroll_region(self._page_canvas)
-        self._page_canvas.yview_moveto(0)
+        self.action_bar.clear_result()
+        self.action_bar.set_mode("cancel")
+        self.drop_zone.set_enabled(False)
+        self._refresh()
+        self.after(100, self._start_next_in_queue)
 
     def _cancel_queue(self):
-        """Stop the current file as soon as possible and skip the rest."""
+        """Stop the current video as soon as possible; the rest stay queued."""
         if not self._processing or self._cancelled:
             return
         self._cancelled = True
         self.controller.cancel()
-        self.generate_button.configure(text="⏹ Cancelling…", state="disabled")
-
-    def run(self):
-        """Start the application."""
-        self.mainloop()
-
-    # --- Queue processing helpers ---
-    def _progress_callback(self, value, message, detail="", success=False, error=False, current_index: int = None):
-        """Thread-safe progress callback marshalled to the main thread.
-
-        Accepts an optional current_index so queue-based updates target the
-        correct per-item progress bar.
-        """
-        try:
-            # forward the current_index to the ActionPanel so it updates the
-            # correct queue item (if any).
-            self.after(0, self.action_panel.update_progress_ui, value, message, detail, success, error, current_index)
-        except Exception:
-            pass
+        self.action_bar.set_mode("cancelling")
 
     def _start_next_in_queue(self):
-        """Start the controller for the next file in the queue (sequential)."""
-        if not hasattr(self, "_queue") or self._current_index >= len(self._queue):
+        pending = self.queue.pending()
+        if self._cancelled or not pending:
+            self._finish_queue()
             return
 
-        path = self._queue[self._current_index]
-        title = os.path.basename(path)
-        # Ensure the queue is visible and set current item to 0%
+        index = pending[0]
+        self.queue.start(index)
+        self._refresh()
+        self.queue_list.show_row(index)
+
+        def progress_cb(value, message, detail="", success=False, error=False):
+            self.after(0, self._on_progress, index, value, message, detail)
+
         try:
-            # Update status and make sure queue is visible
-            self.action_panel.update_progress_ui(0.0, f"🚀 Starting {title}", "Preparing to load AI model", current_index=self._current_index)
-        except Exception:
-            pass
-
-        # begin controller work for this file. Capture the current index so
-        # progress callbacks update the proper queue item even if
-        # self._current_index changes later.
-        try:
-            idx = self._current_index
-
-            def progress_cb(value, message, detail="", success=False, error=False):
-                # delegate to the central callback with captured index
-                return self._progress_callback(value, message, detail, success, error, current_index=idx)
-
             self.controller.start(
-                path,
+                self.queue.items[index].path,
                 progress_cb,
-                self._on_queue_file_finished,
-                self._on_queue_file_error,
+                lambda output_path: self.after(0, self._on_file_finished, index, output_path),
+                lambda exc: self.after(0, self._on_file_error, index, exc),
             )
         except Exception as exc:
-            logger.exception("Failed to start controller for %s: %s", path, exc)
+            logger.exception("Failed to start controller: %s", exc)
+            self._on_file_error(index, exc)
 
-    def _on_queue_file_finished(self, output_path):
-        """Called from worker thread when a file finishes; marshal to main thread."""
-        try:
-            filename = os.path.basename(output_path)
-            # Mark the just-finished item as complete (set its progress to 100%)
-            # and target the current_index so the correct row updates.
-            self.after(0, self.action_panel.update_progress_ui, 1.0, "✅ Complete!", f"Subtitles saved as: {filename}", True, False, self._current_index)
+    def _on_progress(self, index, value, message, detail):
+        self.queue.progress(index, value, message, detail)
+        self.queue_list.update_row(index, self.queue.items[index])
 
-            def _record_success():
-                self._succeeded += 1
-                self._refresh_device_badge()
-                self._advance_queue()
+    def _on_file_finished(self, index, output_path):
+        self.queue.finish(index, f"Saved as {os.path.basename(output_path)}")
+        self._run_done += 1
+        self._refresh_device_badge()
+        self._refresh()
+        self.after(250, self._start_next_in_queue)
 
-            self.after(500, _record_success)
-        except Exception:
-            logger.exception("Failed to handle finished file")
-
-    def _on_queue_file_error(self, exc: Exception):
-        """Called from worker thread when a file errors; marshal to main thread and continue."""
-        try:
-            if isinstance(exc, TranscriptionCancelled):
-                self.after(0, self.action_panel.update_progress_ui, 0, "⏹ Cancelled", "", False, True, self._current_index)
-                self.after(0, self._finish_queue, self._current_index + 1)
-                return
-
-            err = str(exc)
-            # Target the current queue item row when showing an error state.
-            self.after(0, self.action_panel.update_progress_ui, 0, "❌ Failed", err, False, True, self._current_index)
-
-            def _record_failure():
-                self._failed.append(os.path.basename(self._queue[self._current_index]))
-                self._refresh_device_badge()
-                self._advance_queue()
-
-            self.after(1000, _record_failure)
-        except Exception:
-            logger.exception("Failed to handle file error")
+    def _on_file_error(self, index, exc):
+        self._refresh_device_badge()
+        if isinstance(exc, TranscriptionCancelled):
+            self.queue.cancel_running()
+            self._refresh()
+            self._finish_queue()
+            return
+        self.queue.fail(index, exc)
+        self._run_failed += 1
+        self._refresh()
+        self.after(400, self._start_next_in_queue)
 
     def _refresh_device_badge(self):
         """Show the device the loaded model actually uses (e.g. after a CPU fallback)."""
@@ -309,54 +249,23 @@ class SubtitleAppWindow(ctk.CTk, DnDBase):
         if engine is not None:
             self.header.set_device(engine.device)
 
-    def _advance_queue(self):
-        """Move to the next queued file, or finish and show a summary."""
-        self._current_index += 1
-        if self._current_index < len(self._queue) and not self._cancelled:
-            self._start_next_in_queue()
-            return
-        self._finish_queue(self._current_index)
-
-    def _finish_queue(self, first_unstarted=None):
-        """Restore the UI and show a summary of the queue.
-
-        first_unstarted: index of the first file that never started (used to
-        label the remaining rows after a cancel).
-        """
-        if self._cancelled and first_unstarted is not None:
-            # Label the files that were never started
-            self.action_panel.mark_rows(first_unstarted, "⏭ Not processed")
-            self.update_idletasks()
-
-        self.action_panel.hide_video_tile()
-        self._fit_page()
-
-        # re-enable UI; Generate follows the (now empty) queue
+    def _finish_queue(self):
+        """Restore the UI and show the outcome of the run."""
         self._processing = False
-        self.action_panel.set_processing(False)
-        try:
-            self.browse_button.configure(state="normal")
-            self.video_card.clear_button.configure(state="normal")
-        except Exception:
-            pass
-        self._on_queue_changed(len(self.video_card.get_queue()))
+        self.drop_zone.set_enabled(True)
+        self._refresh()
 
-        not_processed = len(self._queue) - self._succeeded - len(self._failed)
-        failed_list = "\n".join(f"• {name}" for name in self._failed)
-
+        done, failed = self._run_done, self._run_failed
+        left = len(self.queue.pending())
         if self._cancelled:
-            title = "Cancelled ⏹"
-            message = f"Cancelled – {self._succeeded} done, {not_processed} not processed."
-            if self._failed:
-                message += f"\n\n{len(self._failed)} failed:\n{failed_list}"
-        elif self._failed:
-            title = "Finished with errors"
-            message = f"{self._succeeded} succeeded, {len(self._failed)} failed:\n{failed_list}"
+            self.action_bar.show_result(
+                "warning", f"Cancelled  ·  {done} done, {_plural(left, 'video')} still queued")
+        elif failed:
+            self.action_bar.show_result("danger", f"Finished with errors  ·  {done} done, {failed} failed")
         else:
-            title = "All Done 🎉"
-            message = f"Subtitles generated for {self._succeeded} file(s)."
+            self.action_bar.show_result(
+                "success", f"All done  ·  {_plural(done, 'subtitle file')} saved next to the videos")
 
-        if self._cancelled or self._failed:
-            messagebox.showwarning(title, message)
-        else:
-            messagebox.showinfo(title, message)
+    def run(self):
+        """Start the application."""
+        self.mainloop()

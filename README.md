@@ -6,19 +6,19 @@ A professional desktop application for generating accurate English subtitles fro
 
 - **🎯 100% Accurate Timestamps**: VAD ensures subtitles sync perfectly, even during music/action scenes
 - **🚀 GPU Acceleration**: Automatic NVIDIA GPU detection, with automatic fallback to CPU if the GPU can't be used
-- **🎨 Modern GUI**: Beautiful dark-themed interface using CustomTkinter
+- **🎨 Cinema-style GUI**: Graphite interface with a teal accent, built with CustomTkinter
 - **⚡ Batched Transcription**: Transcribes several speech chunks at once (about 3.5x faster on GPU)
 - **📖 Readable Subtitles**: Word-level timing; lines of at most 42 characters, 2 rows and 7 seconds, ending when the speech ends
-- **📂 Batch Queue**: Add videos with the button or by drag & drop (the file card lights up while you drag); each gets its own live progress bar, and the queue can be cancelled
+- **📂 One Queue**: Click or drag & drop videos onto the drop zone; each video shows its progress and result (done / failed / cancelled) in the same list. Cancelled runs keep the remaining videos queued so you can continue later
 - **🎧 Smart Audio Track**: Videos with several audio tracks use the English one
 - **📹 Format Support**: MP4, AVI, MOV, MKV, WMV, FLV, WebM
 - **💪 Production Ready**: Clean modular architecture with proper separation of concerns
 
 ## 🔧 How It Works
 
-1. **Add Videos**: Click **Add Files** or drag & drop videos onto the window
-2. **Generate**: App reads the audio straight from the video (no temporary files), detects speech with VAD, and transcribes each file in turn. Click **Cancel** at any time to stop
-3. **Done**: Subtitles saved as `<video name>_subtitles.srt` next to each video, with a summary of how many succeeded or failed
+1. **Add Videos**: Click the drop zone or drag & drop videos onto the window (it lights up teal while you drag)
+2. **Generate**: The app reads the audio straight from the video (no temporary files), detects speech with VAD, and transcribes each queued video in turn. Click **Cancel** at any time to stop
+3. **Done**: Subtitles are saved as `<video name>_subtitles.srt` next to each video. The list shows where each file was saved (or why it failed), and the bottom bar shows a summary
 
 ### Why VAD Matters
 
@@ -38,13 +38,14 @@ video_subtitle_generator/
 │   │   ├── subtitle_engine.py      # Whisper + VAD transcription
 │   │   └── subtitle_formatter.py   # Readable cues + SRT output
 │   ├── gui/               # User interface
-│   │   ├── app_window.py           # Main window and queue processing
-│   │   ├── header.py               # Title and badges
-│   │   ├── video_card.py           # File queue (add / remove / clear)
-│   │   ├── action_panel.py         # Generate/Cancel and per-file progress
-│   │   ├── video_tile.py           # Progress tile widgets
-│   │   ├── components.py           # Scrollable container + mouse wheel
-│   │   └── theme.py                # Color palette
+│   │   ├── app_window.py           # Main window layout and queue processing
+│   │   ├── header.py               # Top bar: app name + GPU/CPU pill
+│   │   ├── drop_zone.py            # Dashed drop / click-to-browse area
+│   │   ├── queue_list.py           # The queue: one row per video with progress + result
+│   │   ├── queue_model.py          # Queue state (no widgets, unit-tested)
+│   │   ├── action_bar.py           # Summary, result line and Generate / Cancel
+│   │   ├── components.py           # Scroll area, mouse wheel, round remove button
+│   │   └── theme.py                # Design system: colours, fonts, icons, spacing
 │   └── utils/             # Configuration
 │       └── config.py               # Centralized settings
 ├── tests/                 # Unit tests (python -m unittest discover tests)
@@ -52,6 +53,19 @@ video_subtitle_generator/
 ├── requirements.txt       # Dependencies
 └── README.md              # This file
 ```
+
+## 🎨 Design
+
+The interface uses a "Cinema" design system defined in `src/gui/theme.py`:
+
+| Role | Value |
+|------|-------|
+| Background / surfaces | `#0E0F11` / `#17181B` (neutral graphite) |
+| Accent | `#2DD4BF` teal (progress, primary button, drag-over) |
+| Text | `#ECEDEF`, muted `#8E9199` |
+| Success / warning / danger | `#6EDC8C` / `#F2B84B` / `#FF6B6B` |
+| Fonts | Bahnschrift (titles, labels, buttons), Segoe UI Variable (text), Cascadia Mono (numbers) |
+| Icons | Segoe Fluent Icons, with plain-text fallbacks |
 
 ## 🚀 Installation
 
